@@ -1,6 +1,5 @@
 package com.TreeShake;
 
-import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -8,8 +7,6 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Bee;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,6 +16,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.NamespacedKey;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -33,6 +31,7 @@ public final class TreeShake extends JavaPlugin implements Listener {
     private Economy econ;
     private final NamespacedKey cooldownKey = new NamespacedKey(this, "tree_cooldown");
     private final Map<Player, Long> playerCooldowns = new ConcurrentHashMap<>();
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
@@ -73,15 +72,14 @@ public final class TreeShake extends JavaPlugin implements Listener {
         // Per-player cooldown (60 seconds = 60_000 ms)
         long now = System.currentTimeMillis();
         long lastShake = playerCooldowns.getOrDefault(player, 0L);
-        if (now - lastShake < 60_000) {
-            long remaining = (60_000 - (now - lastShake)) / 1000;
+        if (now - lastShake < 10_000) {
+            long remaining = (10_000 - (now - lastShake)) / 1000;
             player.sendMessage(ChatColor.YELLOW + "The tree needs " + remaining + " more seconds to recover.");
             return;
         }
 
         // ────────────────────────────────────────────────
-        // All effects and drops happen here
-
+        // Effects
         player.playSound(block.getLocation(), Sound.BLOCK_WOOD_HIT, 0.8f, 1.2f);
 
         Location center = block.getLocation().add(0.5, 1.0, 0.5);
@@ -102,49 +100,30 @@ public final class TreeShake extends JavaPlugin implements Listener {
             block.getWorld().dropItemNaturally(dropLoc, new ItemStack(Material.STICK, amount));
             player.sendMessage(ChatColor.GREEN + "Twigs fell from the tree!");
         } else {
-            int bellChance = getConfig().getInt("bell-chance", 10);
-            if (chance <= twigChance + bellChance) {
-                int min = getConfig().getInt("bell-min", 20);
-                int max = getConfig().getInt("bell-max", 150);
-                double amount = ThreadLocalRandom.current().nextDouble(min, max + 1);
-
-                if (econ != null) {
-                    EconomyResponse response = econ.depositPlayer(player, amount);
-                    if (response.transactionSuccess()) {
-                        ItemStack visual = new ItemStack(Material.EMERALD);
-                        ItemMeta meta = visual.getItemMeta();
-                        if (meta != null) {
-                            meta.setDisplayName(ChatColor.GOLD.toString() + (int) amount + " Bells");
-                            visual.setItemMeta(meta);
-                        }
-                        block.getWorld().dropItemNaturally(dropLoc, visual);
-                        player.sendMessage(ChatColor.GOLD + "You obtained " + (int) amount + " bells!");
-                    } else {
-                        player.sendMessage(ChatColor.RED + "Failed to award bells.");
-                    }
-                } else {
-                    player.sendMessage(ChatColor.RED + "Economy unavailable.");
-                }
+            // 50/50 split between more sticks or a bell
+            if (ThreadLocalRandom.current().nextBoolean()) {
+                int amount = ThreadLocalRandom.current().nextInt(1, 4);
+                block.getWorld().dropItemNaturally(dropLoc, new ItemStack(Material.STICK, amount));
+                player.sendMessage(ChatColor.GREEN + "More twigs fell from the tree!");
             } else {
-                int furniChance = getConfig().getInt("furniture-chance", 5);
-                if (chance <= twigChance + bellChance + furniChance) {
-                    String furniStr = getConfig().getString("furniture-item", "OAK_STAIRS");
-                    Material furniMat = Material.matchMaterial(furniStr.toUpperCase());
-                    if (furniMat != null) {
-                        block.getWorld().dropItemNaturally(dropLoc, new ItemStack(furniMat));
-                        player.sendMessage(ChatColor.BLUE + "Furniture fell from the tree!");
-                    } else {
-                        player.sendMessage(ChatColor.RED + "Invalid furniture material configured.");
-                    }
-                } else {
-                    // Bees
-                    Location beeLoc = player.getEyeLocation().add(player.getLocation().getDirection().multiply(3));
-                    Bee bee = (Bee) block.getWorld().spawnEntity(beeLoc, EntityType.BEE);
-                    bee.setTarget(player);
-                    bee.setAnger(400); // 20 seconds
-                    player.sendMessage(ChatColor.RED + "A swarm of bees has emerged!");
-                    player.playSound(player.getLocation(), Sound.ENTITY_BEE_STING, 1.0f, 0.8f);
+                // Bell drop
+                ItemStack bell = new ItemStack(Material.GOLD_NUGGET, 1);
+                ItemMeta meta = bell.getItemMeta();
+                if (meta != null) {
+                    meta.setDisplayName(ChatColor.GOLD + "Bell");
+                    meta.setLore(java.util.List.of(
+                            ChatColor.GRAY + "Island currency",
+                            ChatColor.GRAY + "Right-click to deposit (coming soon)"
+                    ));
+                    meta.getPersistentDataContainer().set(
+                            new NamespacedKey(this, "bell_value"),
+                            PersistentDataType.INTEGER,
+                            100
+                    );
+                    bell.setItemMeta(meta);
                 }
+                block.getWorld().dropItemNaturally(dropLoc, bell);
+                player.sendMessage(ChatColor.GOLD + "A Bell fell from the tree!");
             }
         }
 
