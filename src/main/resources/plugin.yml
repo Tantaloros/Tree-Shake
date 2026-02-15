@@ -1,0 +1,6 @@
+name: TreeShake
+version: '${project.version}'
+main: com.TreeShake
+api-version: '1.21'
+softdepend: [Vault]
+folia-supported: true

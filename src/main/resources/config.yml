@@ -1,0 +1,15 @@
+# Cooldown in milliseconds (default: 60 seconds)
+cooldown: 60000
+
+# Drop chances (must sum to 100 for full coverage)
+twig-chance: 80
+bell-chance: 10
+furniture-chance: 5
+# bee-chance: implicit (100 - sum of others)
+
+# Bells range
+bell-min: 20
+bell-max: 150
+
+# Furniture item (Material name, e.g., OAK_STAIRS for placeholder)
+furniture-item: OAK_STAIRS
