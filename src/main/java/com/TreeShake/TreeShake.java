@@ -8,6 +8,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.TileState;
 import org.bukkit.entity.Bee;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -67,13 +68,16 @@ public final class TreeShake extends JavaPlugin implements Listener {
         }
         Player player = event.getPlayer();
         BlockState state = block.getState();
-        PersistentDataContainer pdc = state.getPersistentDataContainer();
-        long lastShaken = pdc.getOrDefault(cooldownKey, PersistentDataType.LONG, 0L);
-        long now = System.currentTimeMillis();
-        long cooldown = getConfig().getLong("cooldown", 60000L);
-        if (now - lastShaken < cooldown) {
-            long remaining = (cooldown - (now - lastShaken)) / 1000;
-            player.sendMessage(ChatColor.YELLOW + "The tree requires " + remaining + " more seconds to recover.");
+        if (state instanceof TileState tileState) {
+            PersistentDataContainer pdc = tileState.getPersistentDataContainer();
+            // Use pdc here
+            long lastShaken = pdc.getOrDefault(cooldownKey, PersistentDataType.LONG, 0L);
+            // ...
+            pdc.set(cooldownKey, PersistentDataType.LONG, now);
+            tileState.update(true);  // Apply changes
+        } else {
+            // Block does not support PDC (e.g. plain log) → skip or use alternative
+            player.sendMessage("This block type does not support cooldowns.");
             return;
         }
         // Effects
